@@ -1,0 +1,16 @@
+# Run from project root
+$folders = @(
+  "src/app",
+  "src/components",
+  "src/features/addons",
+  "src/features/catalog",
+  "src/features/meta",
+  "src/features/streams",
+  "src/hooks",
+  "src/lib",
+  "src/pages",
+  "src/state"
+)
+foreach ($f in $folders) {
+  New-Item -ItemType File -Path "$f/.gitkeep" -Force
+}

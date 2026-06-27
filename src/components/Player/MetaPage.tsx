@@ -40,6 +40,11 @@ interface TmdbSeasonDetail {
   episodes?: TmdbEpisode[];
 }
 
+interface TmdbFindResult {
+  movie_results?: { id: number }[];
+  tv_results?: { id: number }[];
+}
+
 export interface StreamArgs {
   tmdbId: string;
   imdbId?: string;
@@ -47,6 +52,7 @@ export interface StreamArgs {
   title: string;
   season?: number;
   episode?: number;
+  pluginId: string;
 }
 
 interface Props {
@@ -81,9 +87,41 @@ export function MetaPage({ item, pluginId, onBack, onPlay }: Props) {
   const [loadingEps, setLoadingEps] = useState(false);
 
   const isMovie = item.type === "movie";
-  const tmdbId = item.tmdbId ?? item.id;
+  const rawId = item.tmdbId ?? item.id;
+  const isImdbId = rawId.startsWith("tt");
 
+  // Resolved numeric TMDB id (may need a lookup if we only have an IMDB id)
+  const [tmdbId, setTmdbId] = useState<string>(isImdbId ? "" : rawId);
+
+  // Step 1: if we only have an IMDB id, resolve it to a TMDB id first
   useEffect(() => {
+    if (!isImdbId) {
+      setTmdbId(rawId);
+      return;
+    }
+    setLoading(true);
+    setError(null);
+    const mediaType = isMovie ? "movie" : "tv";
+    tmdbFetch<TmdbFindResult>(`/find/${rawId}?external_source=imdb_id`)
+      .then((res) => {
+        const result =
+          mediaType === "movie" ? res.movie_results?.[0] : res.tv_results?.[0];
+        if (result?.id) {
+          setTmdbId(String(result.id));
+        } else {
+          setError(`No TMDB match found for ${rawId}`);
+          setLoading(false);
+        }
+      })
+      .catch((e: unknown) => {
+        setError(String(e));
+        setLoading(false);
+      });
+  }, [rawId, isImdbId, isMovie]);
+
+  // Step 2: fetch detail once we have a real tmdbId
+  useEffect(() => {
+    if (!tmdbId) return;
     setLoading(true);
     setError(null);
     setDetail(null);
@@ -99,6 +137,7 @@ export function MetaPage({ item, pluginId, onBack, onPlay }: Props) {
       .finally(() => setLoading(false));
   }, [tmdbId, isMovie]);
 
+  // Step 3: fetch episodes when season changes
   useEffect(() => {
     if (isMovie || !tmdbId || !detail) return;
     setLoadingEps(true);
@@ -225,7 +264,13 @@ export function MetaPage({ item, pluginId, onBack, onPlay }: Props) {
             {isMovie && (
               <button
                 onClick={() =>
-                  onPlay({ tmdbId, mediaType: "movie", title: title ?? "" })
+                  onPlay({
+                    tmdbId,
+                    imdbId: isImdbId ? rawId : item.imdbId,
+                    mediaType: "movie",
+                    title: title ?? "",
+                    pluginId,
+                  })
                 }
                 className="mt-2 w-fit flex items-center gap-2 bg-red-600 hover:bg-red-700 text-white font-bold px-8 py-3 rounded-xl text-base transition-colors"
               >
@@ -272,10 +317,12 @@ export function MetaPage({ item, pluginId, onBack, onPlay }: Props) {
                     onClick={() =>
                       onPlay({
                         tmdbId,
+                        imdbId: isImdbId ? rawId : item.imdbId,
                         mediaType: "tv",
                         title: title ?? "",
                         season: selectedSeason,
                         episode: ep.episode_number,
+                        pluginId,
                       })
                     }
                     className="flex items-center gap-4 bg-neutral-900 hover:bg-neutral-800 border border-white/5 hover:border-red-500/30 rounded-xl p-4 text-left transition-all group"

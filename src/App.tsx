@@ -2,13 +2,12 @@ import { useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { Sidebar } from "./components/layout/Sidebar";
 import { MobileHeader } from "./components/layout/MobileHeader";
-import { MetaPage, type StreamArgs } from "./components/player";
+import { MetaPage, StreamLoader, type StreamArgs } from "./components/player";
 import { ProviderHomePage } from "./pages/ProviderHomePage";
 import { PluginsPage } from "./pages/PluginsPage";
 import { SettingsPage } from "./pages/SettingsPage";
 import type { YwnPlugin } from "./types/plugin";
 import type { YawnShelfItem } from "./types/yawn";
-import type { ProviderTab } from "./state/providerStore";
 
 export type View = "movies" | "anime" | "plugins" | "settings";
 
@@ -20,6 +19,7 @@ export default function App() {
     item: YawnShelfItem;
     pluginId: string;
   } | null>(null);
+  const [playArgs, setPlayArgs] = useState<StreamArgs | null>(null);
 
   async function loadPlugins() {
     const list = await invoke<YwnPlugin[]>("ywn_list").catch(() => []);
@@ -33,17 +33,19 @@ export default function App() {
     if (view === "plugins") loadPlugins();
   }, [view]);
 
-  // ── Detail / MetaPage overlay ──
+  // ── Player (full screen, highest priority) ──
+  if (playArgs) {
+    return <StreamLoader args={playArgs} onBack={() => setPlayArgs(null)} />;
+  }
+
+  // ── Detail page ──
   if (selectedItem) {
     return (
       <MetaPage
         item={selectedItem.item}
         pluginId={selectedItem.pluginId}
         onBack={() => setSelectedItem(null)}
-        onPlay={(args: StreamArgs) => {
-          // TODO: push to PlayerView
-          console.log("Play requested:", args);
-        }}
+        onPlay={(args) => setPlayArgs(args)}
       />
     );
   }
@@ -61,15 +63,29 @@ export default function App() {
         <MobileHeader onMenuOpen={() => setSidebarOpen(true)} />
 
         <main className="flex-1 overflow-y-auto">
-          {(view === "movies" || view === "anime") && (
+          {/*
+            Keep ProviderHomePage mounted for both movies+anime tabs so
+            the homepage state (shelves, hero) survives navigation — just
+            hide the inactive one with CSS instead of unmounting it.
+          */}
+          <div className={view === "movies" ? "" : "hidden"}>
             <ProviderHomePage
-              tab={view as ProviderTab}
+              tab="movies"
               plugins={plugins}
               onSelectItem={(item, pluginId) =>
                 setSelectedItem({ item, pluginId })
               }
             />
-          )}
+          </div>
+          <div className={view === "anime" ? "" : "hidden"}>
+            <ProviderHomePage
+              tab="anime"
+              plugins={plugins}
+              onSelectItem={(item, pluginId) =>
+                setSelectedItem({ item, pluginId })
+              }
+            />
+          </div>
           {view === "plugins" && <PluginsPage onPluginsChanged={loadPlugins} />}
           {view === "settings" && <SettingsPage />}
         </main>

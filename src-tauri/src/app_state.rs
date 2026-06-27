@@ -1,6 +1,6 @@
 use std::sync::Mutex;
 use reqwest::Client;
-use crate::stremio::models::{AddonDefinition, StremioManifest};
+use crate::stremio::models::{ AddonDefinition, StremioManifest };
 
 pub struct AppState {
     pub client: Client,
@@ -23,8 +23,7 @@ impl AddonDefinition {
     pub fn new(transport_url: String) -> Self {
         let manifest_url = format!(
             "{}/manifest.json",
-            transport_url.trim_end_matches('/')
-                .trim_end_matches("/manifest.json")
+            transport_url.trim_end_matches('/').trim_end_matches("/manifest.json")
         );
         AddonDefinition {
             transport_url,

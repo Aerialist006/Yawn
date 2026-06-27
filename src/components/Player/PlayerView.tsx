@@ -45,6 +45,7 @@ export function PlayerView({
 
   async function resolveStream(index: number) {
     if (index >= streams.length) {
+      console.warn("[PlayerView] All streams exhausted, nothing to play.");
       setResolved({ mode: "error" });
       return;
     }
@@ -52,9 +53,13 @@ export function PlayerView({
     const stream = streams[index];
     setCurrentIndex(index);
     setResolved({ mode: "loading", index });
+    console.log(`[PlayerView] Trying stream #${index}: "${stream.name}"`);
 
     if (stream.name === "Videasy") {
       try {
+        console.log(
+          "[PlayerView] Attempting native HLS extraction via Videasy...",
+        );
         const url = await invoke<string | null>("sp_extract_stream", {
           tmdbId,
           mediaType,
@@ -62,14 +67,24 @@ export function PlayerView({
           episode,
         });
         if (url) {
+          console.log(`[PlayerView] ✓ Native player — HLS URL: ${url}`);
           setResolved({ mode: "native", url, index });
           return;
         }
-      } catch {
-        // fall through to embed
+        console.warn(
+          "[PlayerView] Videasy extraction returned null, falling back to embed.",
+        );
+      } catch (err) {
+        console.warn(
+          "[PlayerView] Videasy extraction threw, falling back to embed:",
+          err,
+        );
       }
     }
 
+    console.log(
+      `[PlayerView] ✓ Embed player — "${stream.name}" → ${stream.url}`,
+    );
     setResolved({ mode: "embed", url: stream.url, index });
   }
 

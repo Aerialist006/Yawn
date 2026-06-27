@@ -113,7 +113,7 @@ struct TmdbSeasonSummary {
     name: Option<String>,
 }
 
-// ─── Videasy extractor types ─────────────────────────────────────────────────
+// ─── Videasy extractor types ──────────────────────────────────────────────────
 
 #[derive(Debug, Deserialize)]
 struct VideasySource {
@@ -320,17 +320,30 @@ pub async fn extract_videasy(
 ) -> Result<Option<String>, String> {
     let api_url = match (media_type, season, episode) {
         ("tv", Some(s), Some(e)) =>
-            format!("https://player.videasy.net/api/tv/{}/{}/{}", tmdb_id, s, e),
+            format!(
+                "https://player.videasy.net/api/tv/{}/{}/{}", // ← .net not .to
+                tmdb_id,
+                s,
+                e
+            ),
         _ => format!("https://player.videasy.net/api/movie/{}", tmdb_id),
     };
 
-    let resp = client
+    println!("[Videasy] Fetching: {}", api_url);
+
+    let bytes = client
         .get(&api_url)
         .header("Referer", "https://player.videasy.net/")
         .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
         .send().await
         .map_err(|e| format!("Videasy fetch failed: {e}"))?
-        .json::<VideasyResponse>().await
+        .bytes().await
+        .map_err(|e| format!("Videasy read failed: {e}"))?;
+
+    println!("[Videasy] Raw response: {}", String::from_utf8_lossy(&bytes));
+
+    let resp = serde_json
+        ::from_slice::<VideasyResponse>(&bytes)
         .map_err(|e| format!("Videasy parse failed: {e}"))?;
 
     let url = resp.sources
@@ -338,6 +351,8 @@ pub async fn extract_videasy(
         .into_iter()
         .find(|s| (s.kind.as_deref() == Some("hls") || s.file.is_some()))
         .and_then(|s| s.file);
+
+    println!("[Videasy] Resolved URL: {:?}", url);
 
     Ok(url)
 }

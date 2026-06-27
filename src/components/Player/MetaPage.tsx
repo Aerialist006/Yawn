@@ -1,208 +1,327 @@
-import { useState, useEffect } from "react";
-import { api } from "../../lib/invoke";
-import type {
-  YawnMediaItem,
-  YawnMeta,
-  YawnEpisode,
-  StreamResult,
-  YawnStream,
-} from "../../types/yawn";
-import { SeasonPicker } from "./SeasonPicker";
-import { StreamPicker } from "./StreamPicker";
-import { PlayerView } from "../Player";
+import { useEffect, useState } from "react";
+import { ArrowLeft, Star, Play, WarningCircle } from "@phosphor-icons/react";
+import { cachedFetch } from "../../state/tmdbCache";
+import type { YawnShelfItem } from "../../types/yawn";
 
-interface Props {
-  item: YawnMediaItem;
-  onBack: () => void;
+interface TmdbDetail {
+  title?: string;
+  name?: string;
+  overview?: string;
+  backdrop_path?: string;
+  poster_path?: string;
+  vote_average?: number;
+  release_date?: string;
+  first_air_date?: string;
+  genres?: { id: number; name: string }[];
+  runtime?: number;
+  number_of_seasons?: number;
+  status?: string;
+  seasons?: TmdbSeason[];
+  success?: boolean;
+  status_message?: string;
 }
 
-export function MetaPage({ item, onBack }: Props) {
-  const [meta, setMeta] = useState<YawnMeta | null>(null);
-  const [activeSeason, setActiveSeason] = useState(1);
-  const [activeEpisode, setActiveEpisode] = useState<YawnEpisode | null>(null);
-  const [streams, setStreams] = useState<StreamResult | null>(null);
-  const [loadingMeta, setLoadingMeta] = useState(true);
-  const [loadingStreams, setLoadingStreams] = useState(false);
-  const [showPlayer, setShowPlayer] = useState(false);
+interface TmdbSeason {
+  season_number: number;
+  name: string;
+  episode_count: number;
+  poster_path?: string;
+}
+
+interface TmdbEpisode {
+  episode_number: number;
+  name: string;
+  overview?: string;
+  still_path?: string;
+  runtime?: number;
+}
+
+interface TmdbSeasonDetail {
+  episodes?: TmdbEpisode[];
+}
+
+export interface StreamArgs {
+  tmdbId: string;
+  imdbId?: string;
+  mediaType: "movie" | "tv";
+  title: string;
+  season?: number;
+  episode?: number;
+}
+
+interface Props {
+  item: YawnShelfItem;
+  pluginId: string;
+  onBack: () => void;
+  onPlay: (args: StreamArgs) => void;
+}
+
+const IMG = "https://image.tmdb.org/t/p";
+
+async function tmdbFetch<T>(path: string): Promise<T> {
+  const key = (import.meta as any).env?.VITE_TMDB_KEY ?? "";
+  if (!key) throw new Error("VITE_TMDB_KEY is not set in .env");
+  return cachedFetch<T>(`tmdb_${path}`, async () => {
+    const res = await fetch(
+      `https://api.themoviedb.org/3${path}?api_key=${key}`,
+    );
+    const json = await res.json();
+    if (json.success === false)
+      throw new Error(json.status_message ?? "TMDB error");
+    return json as T;
+  });
+}
+
+export function MetaPage({ item, pluginId, onBack, onPlay }: Props) {
+  const [detail, setDetail] = useState<TmdbDetail | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [selectedSeason, setSelectedSeason] = useState(1);
+  const [episodes, setEpisodes] = useState<TmdbEpisode[]>([]);
+  const [loadingEps, setLoadingEps] = useState(false);
+
+  const isMovie = item.type === "movie";
+  const tmdbId = item.tmdbId ?? item.id;
 
   useEffect(() => {
-    (async () => {
-      setLoadingMeta(true);
-      try {
-        const m = await api.spGetMeta(item.id, item.mediaType);
-        setMeta(m);
-        if (item.mediaType === "movie" && m.item.imdbId) {
-          await fetchStreams(m.item.imdbId, m.item.id);
+    setLoading(true);
+    setError(null);
+    setDetail(null);
+    tmdbFetch<TmdbDetail>(isMovie ? `/movie/${tmdbId}` : `/tv/${tmdbId}`)
+      .then((d) => {
+        setDetail(d);
+        if (!isMovie && d.seasons?.length) {
+          const firstReal = d.seasons.find((s) => s.season_number > 0);
+          setSelectedSeason(firstReal?.season_number ?? 1);
         }
-      } finally {
-        setLoadingMeta(false);
-      }
-    })();
-  }, [item.id]);
+      })
+      .catch((e: unknown) => setError(String(e)))
+      .finally(() => setLoading(false));
+  }, [tmdbId, isMovie]);
 
-  async function fetchStreams(
-    imdbId: string,
-    tmdbId: string,
-    season?: number,
-    episode?: number,
-  ) {
-    setLoadingStreams(true);
-    setStreams(null);
-    try {
-      const result = await api.spGetStreams(
-        imdbId,
-        tmdbId,
-        item.mediaType,
-        season,
-        episode,
-      );
-      setStreams(result);
-      return result;
-    } finally {
-      setLoadingStreams(false);
-    }
-  }
+  useEffect(() => {
+    if (isMovie || !tmdbId || !detail) return;
+    setLoadingEps(true);
+    setEpisodes([]);
+    tmdbFetch<TmdbSeasonDetail>(`/tv/${tmdbId}/season/${selectedSeason}`)
+      .then((d) => setEpisodes(d.episodes ?? []))
+      .catch(console.error)
+      .finally(() => setLoadingEps(false));
+  }, [tmdbId, selectedSeason, isMovie, detail]);
 
-  async function handleEpisodeSelect(ep: YawnEpisode) {
-    setActiveEpisode(ep);
-    const imdbId = meta?.item.imdbId;
-    if (!imdbId) return;
-    const result = await fetchStreams(imdbId, item.id, ep.season, ep.episode);
-    if (result && result.streams.length > 0) {
-      setShowPlayer(true);
-    }
-  }
+  const title = detail?.title ?? detail?.name ?? item.title;
+  const backdrop = detail?.backdrop_path
+    ? `${IMG}/w1280${detail.backdrop_path}`
+    : item.backdrop;
+  const poster = detail?.poster_path
+    ? `${IMG}/w342${detail.poster_path}`
+    : item.poster;
+  const year = (
+    detail?.release_date ??
+    detail?.first_air_date ??
+    item.year ??
+    ""
+  ).slice(0, 4);
+  const rating = detail?.vote_average
+    ? detail.vote_average.toFixed(1)
+    : item.rating;
 
-  function handleMoviePlay() {
-    if (streams && streams.streams.length > 0) setShowPlayer(true);
-  }
-
-  if (showPlayer && streams) {
-    const episodeLabel = activeEpisode
-      ? `S${String(activeEpisode.season).padStart(2, "0")}E${String(activeEpisode.episode).padStart(2, "0")} · ${activeEpisode.title ?? ""}`
-      : undefined;
-
+  if (loading) {
     return (
-      <PlayerView
-        streams={streams.streams}
-        subtitles={streams.subtitles}
-        title={meta?.item.title ?? item.title}
-        episodeLabel={episodeLabel} // ← string label for display
-        tmdbId={item.id}
-        mediaType={item.mediaType}
-        season={activeEpisode?.season} // ← number for Rust
-        episode={activeEpisode?.episode} // ← number for Rust
-        onBack={() => setShowPlayer(false)}
-      />
-    );
-  }
-
-  if (loadingMeta) {
-    return (
-      <div className="min-h-screen bg-neutral-950 text-white flex items-center justify-center relative">
-        <button
-          onClick={onBack}
-          className="absolute top-4 left-4 text-neutral-400 hover:text-white text-sm"
-        >
-          ← Back
-        </button>
-        <div className="flex flex-col items-center gap-3">
-          <div className="w-8 h-8 border-2 border-red-600 border-t-transparent rounded-full animate-spin" />
-          <p className="text-neutral-400 text-sm">Loading…</p>
-        </div>
+      <div className="flex items-center justify-center h-screen bg-neutral-950">
+        <div className="w-12 h-12 border-[3px] border-red-500 border-t-transparent rounded-full animate-spin" />
       </div>
     );
   }
 
-  if (!meta) return null;
-  const { item: detail, seasons } = meta;
-
-  return (
-    <div className="min-h-screen bg-neutral-950 text-white relative">
-      {detail.backdrop && (
-        <div
-          className="fixed inset-0 bg-cover bg-center opacity-20 blur-sm z-0"
-          style={{ backgroundImage: `url(${detail.backdrop})` }}
-        />
-      )}
-
-      <div className="relative z-10 max-w-5xl mx-auto px-4 py-6">
+  if (error) {
+    return (
+      <div className="flex flex-col items-center justify-center h-screen bg-neutral-950 gap-4 px-8 text-center">
+        <WarningCircle size={48} className="text-red-500" />
+        <p className="text-white font-bold text-lg">Failed to load details</p>
+        <p className="text-neutral-500 text-sm max-w-sm">{error}</p>
         <button
           onClick={onBack}
-          className="mb-6 text-sm text-neutral-400 hover:text-white border border-neutral-700 hover:border-neutral-500 px-3 py-1.5 rounded-md transition-colors"
+          className="mt-2 flex items-center gap-2 bg-neutral-800 hover:bg-neutral-700 text-white px-6 py-2.5 rounded-xl text-sm font-semibold transition-colors"
         >
-          ← Back
+          <ArrowLeft size={16} /> Go Back
         </button>
+      </div>
+    );
+  }
 
-        <div className="flex gap-6 mb-8">
-          {detail.poster && (
+  return (
+    <div className="min-h-screen bg-neutral-950 text-white overflow-y-auto">
+      {/* Backdrop */}
+      <div className="relative w-full h-[50vh]">
+        {backdrop && (
+          <img
+            src={backdrop}
+            alt=""
+            className="absolute inset-0 w-full h-full object-cover"
+          />
+        )}
+        <div className="absolute inset-0 bg-gradient-to-t from-neutral-950 via-neutral-950/40 to-neutral-950/70" />
+        <div className="absolute inset-0 bg-gradient-to-r from-neutral-950/80 to-transparent" />
+        <button
+          onClick={onBack}
+          className="absolute top-6 left-6 flex items-center gap-2 text-white/80 hover:text-white bg-black/50 hover:bg-black/70 px-4 py-2 rounded-xl transition-all text-sm font-semibold backdrop-blur"
+        >
+          <ArrowLeft size={16} /> Back
+        </button>
+      </div>
+
+      {/* Content */}
+      <div className="px-8 -mt-36 relative z-10">
+        <div className="flex gap-8 items-end mb-8">
+          {poster && (
             <img
-              src={detail.poster}
-              alt={detail.title}
-              className="w-40 rounded-lg shrink-0 shadow-xl"
+              src={poster}
+              alt={title}
+              className="w-44 rounded-2xl shadow-2xl shrink-0 border border-white/10 hidden sm:block"
             />
           )}
-          <div className="flex flex-col justify-center">
-            <h1 className="text-3xl font-bold mb-2">{detail.title}</h1>
-            <div className="flex gap-2 flex-wrap mb-3">
-              {detail.year && (
-                <span className="text-xs bg-neutral-800 px-2.5 py-1 rounded text-neutral-300">
-                  {detail.year}
+          <div className="flex flex-col gap-3 pb-2 min-w-0">
+            <h1 className="text-4xl font-black leading-tight">{title}</h1>
+            <div className="flex items-center gap-4 text-sm flex-wrap">
+              {rating && (
+                <span className="flex items-center gap-1 text-yellow-400 font-bold">
+                  <Star size={14} weight="fill" /> {rating}
                 </span>
               )}
-              {detail.rating && (
-                <span className="text-xs bg-neutral-800 px-2.5 py-1 rounded text-yellow-400">
-                  ★ {detail.rating.toFixed(1)}
+              {year && <span className="text-neutral-400">{year}</span>}
+              {detail?.runtime && (
+                <span className="text-neutral-400">{detail.runtime} min</span>
+              )}
+              {detail?.number_of_seasons && (
+                <span className="text-neutral-400">
+                  {detail.number_of_seasons} Season
+                  {detail.number_of_seasons > 1 ? "s" : ""}
                 </span>
               )}
-              {detail.genres?.map((g) => (
-                <span
-                  key={g}
-                  className="text-xs bg-neutral-800 px-2.5 py-1 rounded text-neutral-300"
-                >
-                  {g}
+              {detail?.status && (
+                <span className="bg-neutral-800 text-neutral-300 px-2 py-0.5 rounded-md text-xs">
+                  {detail.status}
                 </span>
-              ))}
+              )}
             </div>
-            {detail.overview && (
-              <p className="text-neutral-400 text-sm leading-relaxed max-w-xl line-clamp-4">
-                {detail.overview}
+            {detail?.genres && detail.genres.length > 0 && (
+              <div className="flex gap-2 flex-wrap">
+                {detail.genres.map((g) => (
+                  <span
+                    key={g.id}
+                    className="text-xs bg-white/5 border border-white/10 text-neutral-300 px-3 py-1 rounded-full"
+                  >
+                    {g.name}
+                  </span>
+                ))}
+              </div>
+            )}
+            {(detail?.overview ?? item.overview) && (
+              <p className="text-neutral-400 text-sm leading-relaxed max-w-2xl">
+                {detail?.overview ?? item.overview}
               </p>
             )}
-
-            {item.mediaType === "movie" && (
+            {isMovie && (
               <button
-                onClick={handleMoviePlay}
-                disabled={loadingStreams || !streams}
-                className="mt-4 w-fit flex items-center gap-2 bg-red-600 hover:bg-red-700 disabled:bg-neutral-700 disabled:cursor-not-allowed text-white font-semibold px-6 py-2.5 rounded-lg transition-colors"
+                onClick={() =>
+                  onPlay({ tmdbId, mediaType: "movie", title: title ?? "" })
+                }
+                className="mt-2 w-fit flex items-center gap-2 bg-red-600 hover:bg-red-700 text-white font-bold px-8 py-3 rounded-xl text-base transition-colors"
               >
-                {loadingStreams ? (
-                  <>
-                    <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                    Loading…
-                  </>
-                ) : (
-                  <>▶ Play</>
-                )}
+                <Play size={18} weight="fill" /> Watch Now
               </button>
             )}
           </div>
         </div>
 
-        {seasons && seasons.length > 0 && (
-          <SeasonPicker
-            seasons={seasons}
-            activeSeason={activeSeason}
-            activeEpisode={activeEpisode?.episode ?? null}
-            onSeasonChange={setActiveSeason}
-            onEpisodeSelect={handleEpisodeSelect}
-          />
-        )}
+        {/* TV seasons + episodes */}
+        {!isMovie && detail?.seasons && (
+          <div className="mt-2 pb-12">
+            <div className="flex gap-2 flex-wrap mb-6">
+              {detail.seasons
+                .filter((s) => s.season_number > 0)
+                .map((s) => (
+                  <button
+                    key={s.season_number}
+                    onClick={() => setSelectedSeason(s.season_number)}
+                    className={`px-4 py-2 rounded-xl text-sm font-semibold transition-colors ${
+                      selectedSeason === s.season_number
+                        ? "bg-red-600 text-white"
+                        : "bg-neutral-800 text-neutral-400 hover:text-white hover:bg-neutral-700"
+                    }`}
+                  >
+                    {s.name}
+                  </button>
+                ))}
+            </div>
 
-        {loadingStreams && (
-          <div className="flex items-center gap-3 mt-6 text-neutral-400 text-sm">
-            <div className="w-4 h-4 border-2 border-red-600 border-t-transparent rounded-full animate-spin" />
-            Fetching streams…
+            {loadingEps ? (
+              <div className="flex justify-center py-12">
+                <div className="w-8 h-8 border-2 border-red-500 border-t-transparent rounded-full animate-spin" />
+              </div>
+            ) : episodes.length === 0 ? (
+              <p className="text-neutral-600 text-sm py-8 text-center">
+                No episodes found.
+              </p>
+            ) : (
+              <div className="flex flex-col gap-3">
+                {episodes.map((ep) => (
+                  <button
+                    key={ep.episode_number}
+                    onClick={() =>
+                      onPlay({
+                        tmdbId,
+                        mediaType: "tv",
+                        title: title ?? "",
+                        season: selectedSeason,
+                        episode: ep.episode_number,
+                      })
+                    }
+                    className="flex items-center gap-4 bg-neutral-900 hover:bg-neutral-800 border border-white/5 hover:border-red-500/30 rounded-xl p-4 text-left transition-all group"
+                  >
+                    <div className="w-32 h-20 rounded-lg overflow-hidden bg-neutral-800 shrink-0">
+                      {ep.still_path ? (
+                        <img
+                          src={`${IMG}/w300${ep.still_path}`}
+                          alt=""
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center text-neutral-600">
+                          <Play size={20} />
+                        </div>
+                      )}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-3 mb-1">
+                        <span className="text-neutral-500 text-sm font-mono shrink-0">
+                          E{String(ep.episode_number).padStart(2, "0")}
+                        </span>
+                        <span className="text-white font-semibold text-sm truncate group-hover:text-red-400 transition-colors">
+                          {ep.name}
+                        </span>
+                        {ep.runtime && (
+                          <span className="text-neutral-600 text-xs ml-auto shrink-0">
+                            {ep.runtime} min
+                          </span>
+                        )}
+                      </div>
+                      {ep.overview && (
+                        <p className="text-neutral-500 text-xs line-clamp-2 leading-relaxed">
+                          {ep.overview}
+                        </p>
+                      )}
+                    </div>
+                    <Play
+                      size={20}
+                      weight="fill"
+                      className="text-neutral-600 group-hover:text-red-500 shrink-0 transition-colors"
+                    />
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
         )}
       </div>

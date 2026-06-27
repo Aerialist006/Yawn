@@ -26,3 +26,7 @@ serde_json = "1"
 tokio = { version = "1.52.3", features = ["macros", "rt-multi-thread"] }
 tauri-plugin-store = "2.4.3"
 reqwest = { version = "0.13.4", features = ["json", "rustls"] }
+boa_engine = "0.18"
+zip = "2.1"
+chrono = { version = "0.4", features = ["serde"] }
+tauri-plugin-dialog = "2"

@@ -1,4 +1,4 @@
-use boa_engine::{ Context, Source, JsValue, NativeFunction, JsString };
+use boa_engine::{ Context, Source, JsValue, JsString, NativeFunction, js_string };
 use std::path::Path;
 
 pub fn run_plugin_hook(
@@ -26,12 +26,13 @@ pub fn run_plugin_hook(
             .and_then(|r| r.text())
             .unwrap_or_else(|_| "{}".to_string());
 
-        Ok(JsValue::from(body))
+        // ← Boa 0.19: String → &str → JsString → JsValue
+        let js_str = JsString::from(body.as_str());
+        Ok(JsValue::from(js_str))
     });
 
-    // ← key fix: wrap the name in JsString::from
     ctx
-        .register_global_callable(JsString::from("fetchSync"), 1, fetch_fn)
+        .register_global_callable(js_string!("fetchSync"), 1, fetch_fn)
         .map_err(|e| format!("Failed to register fetchSync: {e:?}"))?;
 
     let args_injection = format!("const __args = {};", args_json);

@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import { open } from "@tauri-apps/plugin-dialog";
 import type { YwnPlugin } from "../types/plugin";
 import {
   PuzzlePiece,
@@ -27,10 +26,9 @@ export function PluginsPage() {
 
   async function handleInstall() {
     setError(null);
-    const selected = await open({
-      multiple: false,
-      filters: [{ name: "Yawn Plugin", extensions: ["ywn"] }],
-    });
+
+    // ← uses rfd via Rust, no plugin-dialog needed
+    const selected = await invoke<string | null>("pick_ywn_file");
     if (!selected) return;
 
     setInstalling(true);
@@ -104,7 +102,6 @@ export function PluginsPage() {
               className={`flex items-center gap-4 bg-neutral-900 border rounded-xl px-4 py-4 transition-colors
                 ${p.enabled ? "border-neutral-700" : "border-neutral-800 opacity-60"}`}
             >
-              {/* Icon */}
               <div className="w-11 h-11 rounded-lg bg-neutral-800 flex items-center justify-center shrink-0 overflow-hidden">
                 {p.iconUrl ? (
                   <img
@@ -121,7 +118,6 @@ export function PluginsPage() {
                 )}
               </div>
 
-              {/* Info */}
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2">
                   <span className="font-semibold text-sm">
@@ -146,7 +142,6 @@ export function PluginsPage() {
                 </div>
               </div>
 
-              {/* Actions */}
               <div className="flex items-center gap-3 shrink-0">
                 <button
                   onClick={() => handleToggle(p.manifest.id, p.enabled)}

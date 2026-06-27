@@ -187,3 +187,13 @@ pub async fn ywn_call_hook(
 
     run_plugin_hook(&dir, &manifest.entry, &hook, &args_json)
 }
+
+#[tauri::command]
+pub async fn pick_ywn_file() -> Option<String> {
+    rfd::FileDialog
+        ::new()
+        .add_filter("Yawn Plugin", &["ywn"])
+        .set_title("Install .ywn Plugin")
+        .pick_file()
+        .map(|p| p.to_string_lossy().to_string())
+}

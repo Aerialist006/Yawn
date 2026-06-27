@@ -1,5 +1,5 @@
 use boa_engine::{ Context, Source, JsValue, JsString, NativeFunction, js_string };
-use std::path::Path;
+use std::path::{ Path, PathBuf };
 
 pub fn run_plugin_hook(
     plugin_dir: &Path,
@@ -14,6 +14,8 @@ pub fn run_plugin_hook(
 
     let mut ctx = Context::default();
 
+    // fetchSync: safe to use blocking reqwest here because this whole
+    // function is always called inside spawn_blocking (see commands/plugins.rs)
     let fetch_fn = NativeFunction::from_fn_ptr(|_this, args, _ctx| {
         let url = args
             .get(0)
@@ -21,14 +23,17 @@ pub fn run_plugin_hook(
             .map(|s| s.to_std_string_escaped())
             .unwrap_or_default();
 
+        println!("[YWN] fetchSync → {url}");
+
         let body = reqwest::blocking
             ::get(&url)
             .and_then(|r| r.text())
-            .unwrap_or_else(|_| "{}".to_string());
+            .unwrap_or_else(|e| {
+                println!("[YWN] fetchSync error: {e}");
+                "{}".to_string()
+            });
 
-        // ← Boa 0.19: String → &str → JsString → JsValue
-        let js_str = JsString::from(body.as_str());
-        Ok(JsValue::from(js_str))
+        Ok(JsValue::from(JsString::from(body.as_str())))
     });
 
     ctx
@@ -60,10 +65,12 @@ pub fn run_plugin_hook(
     let call_hook = format!(
         r#"
         (function() {{
-            if (typeof __pluginExport.{hook} !== 'function') return JSON.stringify([]);
+            if (typeof __pluginExport.{hook} !== 'function') {{
+                return JSON.stringify({{ error: "hook {hook} not found" }});
+            }}
             const result = __pluginExport.{hook}(__args);
             if (result && typeof result.then === 'function') {{
-                return JSON.stringify([]);
+                return JSON.stringify({{ error: "async hooks not supported" }});
             }}
             return JSON.stringify(result ?? []);
         }})()
@@ -75,10 +82,10 @@ pub fn run_plugin_hook(
         .eval(Source::from_bytes(call_hook.as_bytes()))
         .map_err(|e| format!("Hook call failed: {e}"))?;
 
-    let json = result
-        .as_string()
-        .map(|s| s.to_std_string_escaped())
-        .unwrap_or_else(|| "[]".to_string());
-
-    Ok(json)
+    Ok(
+        result
+            .as_string()
+            .map(|s| s.to_std_string_escaped())
+            .unwrap_or_else(|| "[]".to_string())
+    )
 }

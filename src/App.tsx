@@ -1,74 +1,105 @@
-import { useState } from "react";
-import { SearchBar, ResultsGrid, MetaPage } from "./components/StreamPlay";
+import { useEffect, useState } from "react";
+import { invoke } from "@tauri-apps/api/core";
+import {
+  FilmSlate,
+  Television,
+  PuzzlePiece,
+  Gear,
+  List,
+  X,
+} from "@phosphor-icons/react";
+import { ProviderHomePage } from "./pages/ProviderHomePage";
 import { PluginsPage } from "./pages/PluginsPage";
-import type { YawnMediaItem } from "./types/yawn";
-import { FilmSlate, PuzzlePiece, Gear, List, X } from "@phosphor-icons/react";
+import type { YwnPlugin } from "./types/plugin";
+import type { YawnShelfItem } from "./types/yawn";
+import type { ProviderTab } from "./state/providerStore";
 
-type View = "home" | "plugins" | "settings";
+type View = "movies" | "anime" | "plugins" | "settings";
 
-function App() {
-  const [results, setResults] = useState<YawnMediaItem[]>([]);
-  const [selected, setSelected] = useState<YawnMediaItem | null>(null);
-  const [view, setView] = useState<View>("home");
+export default function App() {
+  const [view, setView] = useState<View>("movies");
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [plugins, setPlugins] = useState<YwnPlugin[]>([]);
+  const [selectedItem, setSelectedItem] = useState<{
+    item: YawnShelfItem;
+    pluginId: string;
+  } | null>(null);
 
-  if (selected) {
-    return <MetaPage item={selected} onBack={() => setSelected(null)} />;
+  async function loadPlugins() {
+    const list = await invoke<YwnPlugin[]>("ywn_list").catch(() => []);
+    setPlugins(list);
   }
 
-  const navItems: { id: View; label: string; icon: React.ReactNode }[] = [
+  useEffect(() => {
+    loadPlugins();
+  }, []);
+  useEffect(() => {
+    if (view === "plugins") loadPlugins();
+  }, [view]);
+
+  const nav: { id: View; label: string; icon: React.ReactNode }[] = [
     {
-      id: "home",
-      label: "Browse",
-      icon: <FilmSlate size={20} weight="fill" />,
+      id: "movies",
+      label: "Movies & TV",
+      icon: <FilmSlate size={22} weight="fill" />,
+    },
+    {
+      id: "anime",
+      label: "Anime",
+      icon: <Television size={22} weight="fill" />,
     },
     {
       id: "plugins",
       label: "Plugins",
-      icon: <PuzzlePiece size={20} weight="fill" />,
+      icon: <PuzzlePiece size={22} weight="fill" />,
     },
     {
       id: "settings",
       label: "Settings",
-      icon: <Gear size={20} weight="fill" />,
+      icon: <Gear size={22} weight="fill" />,
     },
   ];
 
+  // TODO: render selectedItem detail page (MetaPage) when implemented
+  // if (selectedItem) return <MetaPage ... />
+
   return (
-    <div className="flex min-h-screen bg-neutral-950 text-white">
+    <div className="flex h-screen bg-neutral-950 text-white overflow-hidden">
       {/* Mobile overlay */}
       {sidebarOpen && (
         <div
-          className="fixed inset-0 bg-black/60 z-20 lg:hidden"
+          className="fixed inset-0 bg-black/70 z-20 lg:hidden"
           onClick={() => setSidebarOpen(false)}
         />
       )}
 
-      {/* Sidebar */}
+      {/* ── Sidebar ── */}
       <aside
         className={`
-          fixed top-0 left-0 h-full w-56 bg-neutral-900 border-r border-neutral-800
-          flex flex-col z-30 transition-transform duration-200
-          ${sidebarOpen ? "translate-x-0" : "-translate-x-full"}
-          lg:translate-x-0 lg:static lg:z-auto
-        `}
+        fixed top-0 left-0 h-full w-60 bg-neutral-900 border-r border-white/5 flex flex-col z-30
+        transition-transform duration-200
+        ${sidebarOpen ? "translate-x-0" : "-translate-x-full"}
+        lg:translate-x-0 lg:static lg:z-auto
+      `}
       >
         {/* Logo */}
-        <div className="px-5 py-5 flex items-center justify-between border-b border-neutral-800">
-          <span className="text-red-500 text-xl font-black tracking-tight">
-            YAWN
-          </span>
+        <div className="px-6 py-6 flex items-center justify-between border-b border-white/5">
+          <div className="flex items-center gap-2">
+            <span className="text-red-500 text-2xl font-black tracking-tighter">
+              YAWN
+            </span>
+          </div>
           <button
-            className="lg:hidden text-neutral-400 hover:text-white"
+            className="lg:hidden text-neutral-500 hover:text-white"
             onClick={() => setSidebarOpen(false)}
           >
-            <X size={18} />
+            <X size={20} />
           </button>
         </div>
 
         {/* Nav */}
         <nav className="flex flex-col gap-1 p-3 flex-1">
-          {navItems.map((item) => (
+          {nav.map((item) => (
             <button
               key={item.id}
               onClick={() => {
@@ -76,12 +107,12 @@ function App() {
                 setSidebarOpen(false);
               }}
               className={`
-                flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium
-                transition-colors text-left w-full
+                flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold
+                transition-all duration-150 text-left w-full
                 ${
                   view === item.id
-                    ? "bg-red-600 text-white"
-                    : "text-neutral-400 hover:text-white hover:bg-neutral-800"
+                    ? "bg-red-600 text-white shadow-lg shadow-red-900/30"
+                    : "text-neutral-400 hover:text-white hover:bg-white/5"
                 }
               `}
             >
@@ -91,57 +122,44 @@ function App() {
           ))}
         </nav>
 
-        <div className="px-4 py-4 border-t border-neutral-800">
-          <p className="text-[10px] text-neutral-600">v0.1.0</p>
+        <div className="px-5 py-4 border-t border-white/5">
+          <p className="text-[11px] text-neutral-700">Yawn v0.1.0</p>
         </div>
       </aside>
 
-      {/* Main content */}
-      <div className="flex-1 flex flex-col min-w-0">
-        {/* Top bar (mobile) */}
-        <header className="lg:hidden sticky top-0 z-10 bg-neutral-950/80 backdrop-blur border-b border-neutral-800 px-4 py-3 flex items-center gap-3">
+      {/* ── Main ── */}
+      <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
+        {/* Mobile header */}
+        <header className="lg:hidden flex items-center gap-3 px-4 py-3 border-b border-white/5 bg-neutral-950/90 backdrop-blur shrink-0">
           <button
             onClick={() => setSidebarOpen(true)}
             className="text-neutral-400 hover:text-white"
           >
-            <List size={22} />
+            <List size={24} />
           </button>
-          <span className="text-red-500 text-lg font-black tracking-tight">
+          <span className="text-red-500 text-xl font-black tracking-tighter">
             YAWN
           </span>
         </header>
 
-        {/* Page content */}
-        <main className="flex-1">
-          {view === "home" && (
-            <div className="max-w-6xl mx-auto">
-              <SearchBar onResults={setResults} />
-              {results.length === 0 ? (
-                <div className="flex flex-col items-center justify-center mt-32 gap-4 text-center px-4">
-                  <span className="text-6xl">🎬</span>
-                  <h2 className="text-2xl font-semibold text-white">
-                    Search for anything
-                  </h2>
-                  <p className="text-neutral-500 text-sm max-w-xs">
-                    Movies, TV shows, anime — search above to find and stream
-                    instantly.
-                  </p>
-                </div>
-              ) : (
-                <ResultsGrid items={results} onSelect={setSelected} />
-              )}
-            </div>
+        <main className="flex-1 overflow-y-auto">
+          {(view === "movies" || view === "anime") && (
+            <ProviderHomePage
+              tab={view as ProviderTab}
+              plugins={plugins}
+              onSelectItem={(item, pluginId) =>
+                setSelectedItem({ item, pluginId })
+              }
+            />
           )}
-
-          {view === "plugins" && <PluginsPage />}
-
+          {view === "plugins" && <PluginsPage onPluginsChanged={loadPlugins} />}
           {view === "settings" && (
-            <div className="max-w-3xl mx-auto px-6 py-8">
-              <h1 className="text-2xl font-bold mb-2 flex items-center gap-2">
-                <Gear size={26} weight="fill" className="text-red-500" />
+            <div className="px-8 py-10 max-w-2xl">
+              <h1 className="text-3xl font-black mb-2 flex items-center gap-3">
+                <Gear size={28} weight="fill" className="text-red-500" />{" "}
                 Settings
               </h1>
-              <p className="text-neutral-500 text-sm">Coming soon.</p>
+              <p className="text-neutral-500">Coming soon.</p>
             </div>
           )}
         </main>
@@ -149,5 +167,3 @@ function App() {
     </div>
   );
 }
-
-export default App;

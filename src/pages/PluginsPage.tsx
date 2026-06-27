@@ -10,7 +10,11 @@ import {
   WarningCircle,
 } from "@phosphor-icons/react";
 
-export function PluginsPage() {
+interface Props {
+  onPluginsChanged?: () => void;
+}
+
+export function PluginsPage({ onPluginsChanged }: Props) {
   const [plugins, setPlugins] = useState<YwnPlugin[]>([]);
   const [installing, setInstalling] = useState(false);
   const [error, setError] = useState<string | null>(null);

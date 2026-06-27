@@ -1,7 +1,6 @@
 use std::path::PathBuf;
 use serde::{ Deserialize, Serialize };
 use tauri::Manager;
-use crate::app_state::AppState;
 use crate::plugins::ywn_runtime::run_plugin_hook;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -13,6 +12,8 @@ pub struct YwnManifest {
     pub description: Option<String>,
     pub permissions: Vec<String>,
     pub provides: Vec<String>,
+    #[serde(default)]
+    pub types: Vec<String>, // ← add this
     pub entry: String,
 }
 
@@ -196,4 +197,53 @@ pub async fn pick_ywn_file() -> Option<String> {
         .set_title("Install .ywn Plugin")
         .pick_file()
         .map(|p| p.to_string_lossy().to_string())
+}
+
+#[tauri::command]
+pub async fn ywn_homepage(app: tauri::AppHandle, id: String) -> Result<String, String> {
+    let dir = plugin_dir(&app, &id);
+    if dir.join(".disabled").exists() {
+        return Ok(r#"{"hero":null,"shelves":[]}"#.to_string());
+    }
+    let manifest_str = std::fs
+        ::read_to_string(dir.join("manifest.json"))
+        .map_err(|_| format!("Plugin {id} not found"))?;
+    let manifest: YwnManifest = serde_json
+        ::from_str(&manifest_str)
+        .map_err(|e| format!("Bad manifest: {e}"))?;
+
+    let entry = manifest.entry.clone();
+    let dir2 = dir.clone();
+
+    // ← spawn_blocking keeps reqwest::blocking off the async executor
+    tokio::task
+        ::spawn_blocking(move || { run_plugin_hook(&dir2, &entry, "home", "{}") }).await
+        .map_err(|e| format!("Thread error: {e}"))?
+}
+
+#[tauri::command]
+pub async fn ywn_search(
+    app: tauri::AppHandle,
+    id: String,
+    query: String
+) -> Result<String, String> {
+    let dir = plugin_dir(&app, &id);
+    if dir.join(".disabled").exists() {
+        return Ok("[]".to_string());
+    }
+
+    let manifest_str = std::fs
+        ::read_to_string(dir.join("manifest.json"))
+        .map_err(|_| format!("Plugin {id} not found"))?;
+    let manifest: YwnManifest = serde_json
+        ::from_str(&manifest_str)
+        .map_err(|e| format!("Bad manifest: {e}"))?;
+
+    let entry = manifest.entry.clone();
+    let dir2 = dir.clone();
+    let args = format!(r#"{{"query":"{}"}}"#, query.replace('"', "\\\""));
+
+    tokio::task
+        ::spawn_blocking(move || { run_plugin_hook(&dir2, &entry, "search", &args) }).await
+        .map_err(|e| format!("Thread error: {e}"))?
 }

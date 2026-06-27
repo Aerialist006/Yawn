@@ -32,7 +32,7 @@ export interface StreamResult {
 export interface SubtitleTrack {
   label: string;
   language: string;
-  url: string;       // .vtt or .srt URL, or blob: for manual import
+  url: string; // .vtt or .srt URL, or blob: for manual import
   isLocal?: boolean;
 }
 
@@ -56,4 +56,28 @@ export interface YawnSeason {
 export interface YawnMeta {
   item: YawnMediaItem;
   seasons?: YawnSeason[];
+}
+
+export interface YawnShelfItem {
+  id: string;
+  tmdbId?: string;
+  imdbId?: string;
+  title: string;
+  poster?: string;
+  backdrop?: string;
+  year?: string;
+  type: "movie" | "series" | "anime";
+  rating?: string;
+  overview?: string;
+}
+
+export interface YawnShelf {
+  id: string;
+  title: string;
+  items: YawnShelfItem[];
+}
+
+export interface YawnHomepage {
+  hero?: YawnShelfItem;
+  shelves: YawnShelf[];
 }

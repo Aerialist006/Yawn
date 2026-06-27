@@ -1,11 +1,21 @@
+export type YwnContentType =
+  | "Movie"
+  | "Series"
+  | "Anime"
+  | "AnimeMovie"
+  | "AsianDrama"
+  | "Live"
+  | "Other";
+
 export interface YwnManifest {
   id: string;
   name: string;
   version: string;
   author: string;
-  description: string;
-  permissions: ("network" | "storage")[];
-  provides: ("catalog" | "streams" | "meta")[];
+  description?: string;
+  permissions: string[];
+  provides: string[]; // hook names: "home" | "search" | "streams" | "meta"
+  types: YwnContentType[]; // ← NEW: what content categories this plugin serves
   entry: string;
 }
 

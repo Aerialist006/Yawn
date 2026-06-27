@@ -54,4 +54,16 @@ export const api = {
       season: season ?? null,
       episode: episode ?? null,
     }),
+  sp_extract_stream: (
+    tmdbId: string,
+    mediaType: string,
+    season?: number,
+    episode?: number,
+  ) =>
+    invoke<string | null>("sp_extract_stream", {
+      tmdbId,
+      mediaType,
+      season,
+      episode,
+    }),
 };

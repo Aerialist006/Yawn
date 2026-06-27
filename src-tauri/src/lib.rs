@@ -23,7 +23,8 @@ pub fn run() {
                 addons::get_streams,
                 streamplay::sp_search,
                 streamplay::sp_get_meta,
-                streamplay::sp_get_streams
+                streamplay::sp_get_streams,
+                streamplay::sp_extract_stream,
             ]
         )
         .run(tauri::generate_context!())

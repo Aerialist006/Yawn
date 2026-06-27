@@ -1,45 +1,43 @@
-import { Sidebar } from "./components/Sidebar";
-import { HomePage } from "./pages/Home";
-import { AddonsPage } from "./pages/Addons";
-import { useStore } from "./state/store";
-import { api } from "./lib/invoke";
+import { useState } from "react";
+import { SearchBar, ResultsGrid, MetaPage } from "./components/StreamPlay";
+import type { YawnMediaItem } from "./types/yawn";
 
 function App() {
-  const { activePage } = useStore();
+  const [results, setResults] = useState<YawnMediaItem[]>([]);
+  const [selected, setSelected] = useState<YawnMediaItem | null>(null);
 
-  const testSearch = async () => {
-    const results = await api.spSearch("Breaking Bad");
-    console.log("search:", results);
+  if (selected) {
+    return <MetaPage item={selected} onBack={() => setSelected(null)} />;
+  }
 
-    if (results[0]) {
-      const meta = await api.spGetMeta(results[0].id, results[0].mediaType);
-      console.log("meta:", meta);
-
-      if (meta.item.imdbId) {
-        const streams = await api.spGetStreams(
-          meta.item.imdbId,
-          meta.item.id,
-          meta.item.mediaType,
-          1,
-          1,
-        );
-        console.log("streams:", streams);
-      }
-    }
-  };
   return (
-    <div className="flex h-screen w-screen bg-neutral-950 overflow-hidden text-white">
-      <Sidebar />
-      <main className="flex-1 overflow-hidden">
-        {/* temp debug button */}
-        <button
-          onClick={testSearch}
-          className="fixed top-2 right-2 z-50 bg-red-600 text-white text-xs px-3 py-1 rounded"
-        >
-          TEST INSTALL
-        </button>
-        {activePage === "home" && <HomePage />}
-        {activePage === "addons" && <AddonsPage />}
+    <div className="min-h-screen bg-neutral-950 text-white">
+      {/* Header */}
+      <header className="sticky top-0 z-10 bg-neutral-950/80 backdrop-blur border-b border-neutral-800 px-4 py-3 flex items-center gap-3">
+        <span className="text-red-500 text-xl font-black tracking-tight">
+          YAWN
+        </span>
+        <span className="text-neutral-600 text-sm">·</span>
+        <span className="text-neutral-400 text-sm">StreamPlay</span>
+      </header>
+
+      <main className="max-w-6xl mx-auto">
+        <SearchBar onResults={setResults} />
+
+        {results.length === 0 ? (
+          <div className="flex flex-col items-center justify-center mt-32 gap-4 text-center px-4">
+            <span className="text-6xl">🎬</span>
+            <h2 className="text-2xl font-semibold text-white">
+              Search for anything
+            </h2>
+            <p className="text-neutral-500 text-sm max-w-xs">
+              Movies, TV shows, anime — search above to find and stream
+              instantly.
+            </p>
+          </div>
+        ) : (
+          <ResultsGrid items={results} onSelect={setSelected} />
+        )}
       </main>
     </div>
   );

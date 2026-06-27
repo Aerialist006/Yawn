@@ -11,6 +11,31 @@ export interface YawnMediaItem {
   genres?: string[];
 }
 
+export interface YawnStream {
+  url: string;
+  name: string;
+  quality?: string;
+  streamType: string; // "embed" | "hls" | "mp4"
+  headers?: Record<string, string>;
+}
+
+export interface YawnSubtitle {
+  url: string;
+  language: string;
+}
+
+export interface StreamResult {
+  streams: YawnStream[];
+  subtitles: YawnSubtitle[];
+}
+
+export interface SubtitleTrack {
+  label: string;
+  language: string;
+  url: string;       // .vtt or .srt URL, or blob: for manual import
+  isLocal?: boolean;
+}
+
 export interface YawnEpisode {
   id: string;
   title?: string;
@@ -31,22 +56,4 @@ export interface YawnSeason {
 export interface YawnMeta {
   item: YawnMediaItem;
   seasons?: YawnSeason[];
-}
-
-export interface YawnStream {
-  url: string;
-  name: string;
-  quality?: string;
-  streamType: "hls" | "mp4" | "dash" | "embed";
-  headers?: Record<string, string>;
-}
-
-export interface YawnSubtitle {
-  url: string;
-  language: string;
-}
-
-export interface StreamResult {
-  streams: YawnStream[];
-  subtitles: YawnSubtitle[];
 }

@@ -1,12 +1,12 @@
-use serde::{Deserialize, Serialize};
+use serde::{ Deserialize, Serialize };
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct YawnMediaItem {
-    pub id: String,          // TMDB id
+    pub id: String,
     pub imdb_id: Option<String>,
     pub title: String,
-    pub media_type: String,  // "movie" | "tv"
+    pub media_type: String,
     pub poster: Option<String>,
     pub backdrop: Option<String>,
     pub overview: Option<String>,
@@ -34,7 +34,7 @@ pub struct YawnStream {
     pub url: String,
     pub name: String,
     pub quality: Option<String>,
-    pub stream_type: String, // "hls" | "mp4" | "dash"
+    pub stream_type: String,
     pub headers: Option<std::collections::HashMap<String, String>>,
 }
 

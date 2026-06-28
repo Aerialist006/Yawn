@@ -5,6 +5,8 @@ import { PlayerView } from "./PlayerView";
 import type { StreamArgs } from "./MetaPage";
 import type { YawnStream, YawnSubtitle, StreamResult } from "../../types/yawn";
 
+const TMDB_KEY = "5d0d95c5ded5509acd38ad8d397016ad";
+
 interface Props {
   args: StreamArgs;
   onBack: () => void;
@@ -14,8 +16,10 @@ export function StreamLoader({ args, onBack }: Props) {
   const [streams, setStreams] = useState<YawnStream[] | null>(null);
   const [subtitles, setSubtitles] = useState<YawnSubtitle[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [runtimeSecs, setRuntimeSecs] = useState<number>(0);
 
   useEffect(() => {
+    // Fetch streams
     const argsJson = JSON.stringify({
       tmdbId: args.tmdbId,
       imdbId: args.imdbId ?? null,
@@ -34,13 +38,17 @@ export function StreamLoader({ args, onBack }: Props) {
         const result: StreamResult | YawnStream[] = JSON.parse(raw);
         if (Array.isArray(result)) {
           setStreams(result);
-          setSubtitles([]);
         } else {
           setStreams(result.streams ?? []);
           setSubtitles(result.subtitles ?? []);
         }
       })
       .catch((e: unknown) => setError(String(e)));
+
+    // Fetch real runtime from TMDB in parallel
+    fetchRuntime(args)
+      .then(setRuntimeSecs)
+      .catch(() => {});
   }, []);
 
   if (error) {
@@ -102,9 +110,28 @@ export function StreamLoader({ args, onBack }: Props) {
       season={args.season}
       episode={args.episode}
       onBack={onBack}
-      // Progress context forwarded to EmbedPlayer
       pluginId={args.pluginId}
       poster={args.poster}
+      runtimeSecs={runtimeSecs}
     />
   );
+}
+
+async function fetchRuntime(args: StreamArgs): Promise<number> {
+  const base = "https://api.themoviedb.org/3";
+  const k = `api_key=${TMDB_KEY}`;
+
+  if (args.mediaType === "movie") {
+    const res = await fetch(`${base}/movie/${args.tmdbId}?${k}`);
+    const data = await res.json();
+    // runtime is in minutes
+    return typeof data.runtime === "number" ? data.runtime * 60 : 0;
+  } else if (args.season != null && args.episode != null) {
+    const res = await fetch(
+      `${base}/tv/${args.tmdbId}/season/${args.season}/episode/${args.episode}?${k}`,
+    );
+    const data = await res.json();
+    return typeof data.runtime === "number" ? data.runtime * 60 : 0;
+  }
+  return 0;
 }

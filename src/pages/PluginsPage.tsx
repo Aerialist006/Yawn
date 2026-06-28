@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { invoke } from "@tauri-apps/api/core";
+import { invoke, convertFileSrc } from "@tauri-apps/api/core";
 import type { YwnPlugin } from "../types/plugin";
 import {
   PuzzlePiece,
@@ -22,6 +22,7 @@ export function PluginsPage({ onPluginsChanged }: Props) {
   async function reload() {
     const list = await invoke<YwnPlugin[]>("ywn_list");
     setPlugins(list);
+    onPluginsChanged?.();
   }
 
   useEffect(() => {
@@ -30,11 +31,8 @@ export function PluginsPage({ onPluginsChanged }: Props) {
 
   async function handleInstall() {
     setError(null);
-
-    // ← uses rfd via Rust, no plugin-dialog needed
     const selected = await invoke<string | null>("pick_ywn_file");
     if (!selected) return;
-
     setInstalling(true);
     try {
       await invoke("ywn_install", { path: selected });
@@ -54,6 +52,13 @@ export function PluginsPage({ onPluginsChanged }: Props) {
   async function handleToggle(id: string, current: boolean) {
     await invoke("ywn_toggle", { id, enabled: !current });
     await reload();
+  }
+
+  function getIconSrc(iconUrl: string): string {
+    // iconUrl from Rust is "file:///absolute/path/icon.png"
+    // Strip file:// and convert to Tauri asset URL
+    const path = iconUrl.replace(/^file:\/\//, "");
+    return convertFileSrc(path);
   }
 
   return (
@@ -109,9 +114,13 @@ export function PluginsPage({ onPluginsChanged }: Props) {
               <div className="w-11 h-11 rounded-lg bg-neutral-800 flex items-center justify-center shrink-0 overflow-hidden">
                 {p.iconUrl ? (
                   <img
-                    src={p.iconUrl}
+                    src={getIconSrc(p.iconUrl)}
                     alt=""
                     className="w-full h-full object-cover"
+                    onError={(e) => {
+                      // fallback to puzzle icon if image fails
+                      (e.target as HTMLImageElement).style.display = "none";
+                    }}
                   />
                 ) : (
                   <PuzzlePiece

@@ -6,16 +6,12 @@ export interface ProgressEntry {
   title: string;
   poster?: string;
   pluginId: string;
-  // For TV
   season?: number;
   episode?: number;
-  episodeTitle?: string;
-  // Progress
-  currentTime: number; // seconds
-  duration: number; // seconds
-  percent: number; // 0–1
+  currentTime: number; // seconds elapsed (wall-clock based)
+  duration: number; // seconds — 0 means unknown
+  percent: number; // 0–1, only meaningful when duration > 0
   lastWatched: number; // Date.now()
-  // Considered "done" if percent > 0.9
   completed: boolean;
 }
 
@@ -34,7 +30,7 @@ export function saveProgress(entry: Omit<ProgressEntry, "completed">) {
   const k = key(entry.pluginId, entry.tmdbId, entry.season, entry.episode);
   const full: ProgressEntry = {
     ...entry,
-    completed: entry.duration > 0 && entry.currentTime / entry.duration > 0.9,
+    completed: entry.duration > 0 && entry.percent > 0.9,
   };
   try {
     localStorage.setItem(k, JSON.stringify(full));
@@ -55,7 +51,6 @@ export function getProgress(
   }
 }
 
-/** Returns all progress entries across ALL providers, sorted newest first */
 export function getAllProgress(): ProgressEntry[] {
   const results: ProgressEntry[] = [];
   for (let i = 0; i < localStorage.length; i++) {
@@ -63,13 +58,12 @@ export function getAllProgress(): ProgressEntry[] {
     if (!k?.startsWith(LS_PREFIX)) continue;
     try {
       const entry: ProgressEntry = JSON.parse(localStorage.getItem(k)!);
-      if (!entry.completed) results.push(entry); // skip completed
+      if (!entry.completed) results.push(entry);
     } catch {}
   }
   return results.sort((a, b) => b.lastWatched - a.lastWatched);
 }
 
-/** Returns all progress entries for a specific provider, newest first */
 export function getProviderProgress(pluginId: string): ProgressEntry[] {
   return getAllProgress().filter((e) => e.pluginId === pluginId);
 }

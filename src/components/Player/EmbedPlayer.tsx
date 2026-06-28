@@ -1,5 +1,6 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 import { PlayerControls } from "./PlayerControls";
+import { saveProgress } from "../../state/watchProgress";
 
 interface Props {
   url: string;
@@ -9,6 +10,13 @@ interface Props {
   title: string;
   episodeLabel?: string;
   onBack: () => void;
+  // Progress context — passed from StreamLoader
+  pluginId: string;
+  tmdbId: string;
+  mediaType: "movie" | "tv";
+  poster?: string;
+  season?: number;
+  episode?: number;
 }
 
 export function EmbedPlayer({
@@ -19,8 +27,46 @@ export function EmbedPlayer({
   title,
   episodeLabel,
   onBack,
+  pluginId,
+  tmdbId,
+  mediaType,
+  poster,
+  season,
+  episode,
 }: Props) {
   const iframeRef = useRef<HTMLIFrameElement>(null);
+
+  useEffect(() => {
+    function onMessage(e: MessageEvent) {
+      // Videasy sends: { type: "timeUpdate", currentTime, duration }
+      // Also handle generic { currentTime, duration } shape
+      const d = e.data;
+      if (!d || typeof d !== "object") return;
+
+      const currentTime: number = d.currentTime ?? d.current_time ?? null;
+      const duration: number = d.duration ?? null;
+
+      if (currentTime == null || !duration || duration < 10) return;
+
+      // Throttle: only save every 5 seconds of playback
+      saveProgress({
+        tmdbId,
+        mediaType,
+        title,
+        poster,
+        pluginId,
+        season,
+        episode,
+        currentTime,
+        duration,
+        percent: currentTime / duration,
+        lastWatched: Date.now(),
+      });
+    }
+
+    window.addEventListener("message", onMessage);
+    return () => window.removeEventListener("message", onMessage);
+  }, [tmdbId, pluginId, season, episode]);
 
   return (
     <div className="relative w-full h-full bg-black">
@@ -32,7 +78,6 @@ export function EmbedPlayer({
         allowFullScreen
         allow="autoplay; fullscreen; encrypted-media; picture-in-picture"
       />
-      {/* Overlay — only top bar, provider handles actual controls */}
       <PlayerControls
         videoRef={{ current: null } as any}
         title={title}

@@ -41,7 +41,9 @@ fn load_plugin_from_dir(dir: &PathBuf) -> Option<YwnPlugin> {
     let manifest: YwnManifest = serde_json::from_str(&manifest_str).ok()?;
 
     let icon_url = if dir.join("icon.png").exists() {
-        Some(format!("file://{}", dir.join("icon.png").to_string_lossy()))
+        // Use convertFileSrc-compatible path
+        let path = dir.join("icon.png").to_string_lossy().replace('\\', "/");
+        Some(format!("asset://localhost/{}", path.trim_start_matches('/')))
     } else {
         None
     };

@@ -16,7 +16,7 @@ export function StreamLoader({ args, onBack }: Props) {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    const hookArgs = JSON.stringify({
+    const argsJson = JSON.stringify({
       tmdbId: args.tmdbId,
       imdbId: args.imdbId ?? null,
       mediaType: args.mediaType,
@@ -28,11 +28,10 @@ export function StreamLoader({ args, onBack }: Props) {
     invoke<string>("ywn_call_hook", {
       id: args.pluginId,
       hook: "streams",
-      args_json: hookArgs,
+      argsJson,
     })
       .then((raw) => {
         const result: StreamResult | YawnStream[] = JSON.parse(raw);
-        // Support both {streams, subtitles} and plain array
         if (Array.isArray(result)) {
           setStreams(result);
           setSubtitles([]);
@@ -103,6 +102,9 @@ export function StreamLoader({ args, onBack }: Props) {
       season={args.season}
       episode={args.episode}
       onBack={onBack}
+      // Progress context forwarded to EmbedPlayer
+      pluginId={args.pluginId}
+      poster={args.poster}
     />
   );
 }

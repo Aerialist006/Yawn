@@ -53,6 +53,7 @@ export interface StreamArgs {
   season?: number;
   episode?: number;
   pluginId: string;
+  poster?: string;
 }
 
 interface Props {
@@ -90,10 +91,9 @@ export function MetaPage({ item, pluginId, onBack, onPlay }: Props) {
   const rawId = item.tmdbId ?? item.id;
   const isImdbId = rawId.startsWith("tt");
 
-  // Resolved numeric TMDB id (may need a lookup if we only have an IMDB id)
   const [tmdbId, setTmdbId] = useState<string>(isImdbId ? "" : rawId);
 
-  // Step 1: if we only have an IMDB id, resolve it to a TMDB id first
+  // Step 1: resolve IMDB id → TMDB id if needed
   useEffect(() => {
     if (!isImdbId) {
       setTmdbId(rawId);
@@ -270,6 +270,7 @@ export function MetaPage({ item, pluginId, onBack, onPlay }: Props) {
                     mediaType: "movie",
                     title: title ?? "",
                     pluginId,
+                    poster: poster ?? undefined,
                   })
                 }
                 className="mt-2 w-fit flex items-center gap-2 bg-red-600 hover:bg-red-700 text-white font-bold px-8 py-3 rounded-xl text-base transition-colors"
@@ -323,6 +324,7 @@ export function MetaPage({ item, pluginId, onBack, onPlay }: Props) {
                         season: selectedSeason,
                         episode: ep.episode_number,
                         pluginId,
+                        poster: poster ?? undefined,
                       })
                     }
                     className="flex items-center gap-4 bg-neutral-900 hover:bg-neutral-800 border border-white/5 hover:border-red-500/30 rounded-xl p-4 text-left transition-all group"

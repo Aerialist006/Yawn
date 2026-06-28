@@ -14,6 +14,9 @@ interface Props {
   season?: number;
   episode?: number;
   onBack: () => void;
+  // Progress
+  pluginId: string;
+  poster?: string;
 }
 
 type ResolvedStream =
@@ -32,6 +35,8 @@ export function PlayerView({
   season,
   episode,
   onBack,
+  pluginId,
+  poster,
 }: Props) {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [resolved, setResolved] = useState<ResolvedStream>({
@@ -45,21 +50,15 @@ export function PlayerView({
 
   async function resolveStream(index: number) {
     if (index >= streams.length) {
-      console.warn("[PlayerView] All streams exhausted, nothing to play.");
       setResolved({ mode: "error" });
       return;
     }
-
     const stream = streams[index];
     setCurrentIndex(index);
     setResolved({ mode: "loading", index });
-    console.log(`[PlayerView] Trying stream #${index}: "${stream.name}"`);
 
     if (stream.name === "Videasy") {
       try {
-        console.log(
-          "[PlayerView] Attempting native HLS extraction via Videasy...",
-        );
         const url = await invoke<string | null>("sp_extract_stream", {
           tmdbId,
           mediaType,
@@ -67,29 +66,13 @@ export function PlayerView({
           episode,
         });
         if (url) {
-          console.log(`[PlayerView] ✓ Native player — HLS URL: ${url}`);
           setResolved({ mode: "native", url, index });
           return;
         }
-        console.warn(
-          "[PlayerView] Videasy extraction returned null, falling back to embed.",
-        );
-      } catch (err) {
-        console.warn(
-          "[PlayerView] Videasy extraction threw, falling back to embed:",
-          err,
-        );
-      }
+      } catch {}
     }
 
-    console.log(
-      `[PlayerView] ✓ Embed player — "${stream.name}" → ${stream.url}`,
-    );
     setResolved({ mode: "embed", url: stream.url, index });
-  }
-
-  function handleStreamChange(i: number) {
-    resolveStream(i);
   }
 
   const streamList = streams.map((s) => ({
@@ -136,7 +119,7 @@ export function PlayerView({
   const commonProps = {
     streams: streamList,
     currentStreamIndex: currentIndex,
-    onStreamChange: handleStreamChange,
+    onStreamChange: resolveStream,
     title,
     episodeLabel,
     onBack,
@@ -151,7 +134,16 @@ export function PlayerView({
           autoSubtitles={subtitles}
         />
       ) : (
-        <EmbedPlayer {...commonProps} url={resolved.url} />
+        <EmbedPlayer
+          {...commonProps}
+          url={resolved.url}
+          pluginId={pluginId}
+          tmdbId={tmdbId}
+          mediaType={mediaType as "movie" | "tv"}
+          poster={poster}
+          season={season}
+          episode={episode}
+        />
       )}
     </div>
   );

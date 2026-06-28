@@ -1,4 +1,5 @@
 import {
+  House,
   FilmSlate,
   Television,
   PuzzlePiece,
@@ -15,6 +16,7 @@ interface Props {
 }
 
 const NAV: { id: View; label: string; icon: React.ReactNode }[] = [
+  { id: "home", label: "Home", icon: <House size={22} weight="fill" /> },
   {
     id: "movies",
     label: "Movies & TV",
@@ -32,23 +34,20 @@ const NAV: { id: View; label: string; icon: React.ReactNode }[] = [
 export function Sidebar({ view, onNavigate, open, onClose }: Props) {
   return (
     <>
-      {/* Mobile overlay */}
       {open && (
         <div
           className="fixed inset-0 bg-black/70 z-20 lg:hidden"
           onClick={onClose}
         />
       )}
-
       <aside
         className={`
-          fixed top-0 left-0 h-full w-60 bg-neutral-900 border-r border-white/5
-          flex flex-col z-30 transition-transform duration-200
-          ${open ? "translate-x-0" : "-translate-x-full"}
-          lg:translate-x-0 lg:static lg:z-auto
-        `}
+        fixed top-0 left-0 h-full w-60 bg-neutral-900 border-r border-white/5
+        flex flex-col z-30 transition-transform duration-200
+        ${open ? "translate-x-0" : "-translate-x-full"}
+        lg:translate-x-0 lg:static lg:z-auto
+      `}
       >
-        {/* Logo */}
         <div className="px-6 py-6 flex items-center justify-between border-b border-white/5">
           <span className="text-red-500 text-2xl font-black tracking-tighter">
             YAWN
@@ -61,7 +60,6 @@ export function Sidebar({ view, onNavigate, open, onClose }: Props) {
           </button>
         </div>
 
-        {/* Nav items */}
         <nav className="flex flex-col gap-1 p-3 flex-1">
           {NAV.map((item) => (
             <button

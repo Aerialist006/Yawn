@@ -1,6 +1,7 @@
 import { MagnifyingGlass } from "@phosphor-icons/react";
 import type { YwnPlugin } from "../../types/plugin";
 import type { ProviderTab } from "../../state/providerStore";
+import { convertFileSrc } from "@tauri-apps/api/core";
 
 interface Props {
   tab: ProviderTab;
@@ -14,8 +15,14 @@ interface Props {
 }
 
 export function ProviderTopBar({
-  tab, plugins, activeId, search, searching,
-  onPickProvider, onSearchChange, onSearchSubmit,
+  tab,
+  plugins,
+  activeId,
+  search,
+  searching,
+  onPickProvider,
+  onSearchChange,
+  onSearchSubmit,
 }: Props) {
   const activePlugin = plugins.find((p) => p.manifest.id === activeId);
 
@@ -24,11 +31,19 @@ export function ProviderTopBar({
       {/* Provider picker */}
       <div className="flex items-center gap-3 shrink-0">
         {activePlugin?.iconUrl && (
-          <img src={activePlugin.iconUrl} className="w-8 h-8 rounded-md" alt="" />
+          <img
+            src={convertFileSrc(
+              // strip the file:// prefix since convertFileSrc wants a raw path
+              activePlugin.iconUrl.replace(/^file:\/\//, ""),
+            )}
+            alt={activePlugin.manifest.name}
+            className="w-10 h-10 rounded-lg object-cover"
+          />
         )}
         {plugins.length <= 1 ? (
           <span className="text-white font-bold text-lg">
-            {activePlugin?.manifest.name ?? (tab === "movies" ? "Movies & TV" : "Anime")}
+            {activePlugin?.manifest.name ??
+              (tab === "movies" ? "Movies & TV" : "Anime")}
           </span>
         ) : (
           <select
@@ -48,7 +63,10 @@ export function ProviderTopBar({
       {/* Search */}
       <form
         className="flex-1 flex items-center gap-3 max-w-2xl"
-        onSubmit={(e) => { e.preventDefault(); onSearchSubmit(search); }}
+        onSubmit={(e) => {
+          e.preventDefault();
+          onSearchSubmit(search);
+        }}
       >
         <div className="relative flex-1">
           <MagnifyingGlass
